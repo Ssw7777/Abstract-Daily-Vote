@@ -50,17 +50,8 @@
             padding: 20px;
             border-radius: 8px;
             margin-bottom: 30px;
+            text-align: center;
         }
-
-        .progress-container {
-            height: 4px;
-            background: #1a1a1a;
-            border-radius: 2px;
-            margin: 15px 0;
-            overflow: hidden;
-        }
-
-        #progressBar { height: 100%; background: var(--abs-green); width: 0%; transition: width 0.3s; box-shadow: var(--text-glow); }
 
         /* 表格样式 */
         .table-wrapper { border-radius: 8px; overflow: hidden; border: 1px solid var(--abs-border); }
@@ -75,19 +66,6 @@
         .streak-count { color: var(--abs-green); font-weight: bold; }
         
         .gold-tier { color: #FFD700; background: rgba(255, 215, 0, 0.1); padding: 2px 6px; border-radius: 4px; font-size: 0.8em; }
-
-        #fileInput { display: none; }
-        .btn {
-            background: var(--abs-green);
-            color: black;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-weight: bold;
-            font-family: inherit;
-        }
-        .btn:hover { opacity: 0.9; box-shadow: var(--text-glow); }
     </style>
 </head>
 <body>
@@ -103,10 +81,7 @@
     </div>
 
     <div class="control-panel">
-        <div id="statusText">等待加载 user.json 数据源...</div>
-        <div class="progress-container"><div id="progressBar"></div></div>
-        <input type="file" id="fileInput" accept=".json">
-        <button class="btn" id="manualBtn" style="display:none;">手动上传 user.json</button>
+        <div id="statusText" style="color: var(--abs-green); font-weight: bold;">正在从云端拉取最新数据...</div>
     </div>
 
     <div class="table-wrapper">
@@ -125,86 +100,34 @@
 </div>
 
 <script>
-    // 配置信息
-    const CONTRACT = "0x3B50dE27506f0a8C1f4122A1e6F470009a76ce2A".toLowerCase();
-    const API_KEYS = [
-        "BNQ1DZYHBGF5V8J88C7XZU3MPHYWNA6GWH",
-        "8EFC3KPEUXF8YXFB7CKSGIICA2KRACD67W",
-        "C5X74HZZR164IDTN4HCZMN7Z76RCYYCHGD"
-    ];
-    let keyIndex = 0;
-
-    // 获取轮询 API Key 提高速度
-    function getApiKey() {
-        const key = API_KEYS[keyIndex];
-        keyIndex = (keyIndex + 1) % API_KEYS.length;
-        return key;
-    }
-
-    /**
-     * 计算连续签到天数 (核心逻辑升级)
-     * 规则：北京时间 23:00 刷新。断签即终止。必须持续到今日。
-     */
-    function calculateStreak(txs) {
-        if (!txs || txs.length === 0) return 0;
-
-        // 1. 提取所有成功交互的时间戳，并去重转化成“业务日期”
-        // 业务日期定义：(Timestamp - 23h) 的自然日
-        const signedDays = new Set();
-        txs.forEach(tx => {
-            if (tx.isError === "0" && tx.to.toLowerCase() === CONTRACT) {
-                const ts = parseInt(tx.timeStamp);
-                // 减去 23 小时（23 * 3600 秒），映射到业务日
-                const dateStr = new Date((ts - 23 * 3600) * 1000).toISOString().split('T')[0];
-                signedDays.add(dateStr);
-            }
-        });
-
-        if (signedDays.size === 0) return 0;
-
-        // 2. 计算当前业务日期
-        const nowTs = Math.floor(Date.now() / 1000);
-        const todayStr = new Date((nowTs - 23 * 3600) * 1000).toISOString().split('T')[0];
-        const yesterdayStr = new Date((nowTs - 23 * 3600 - 86400) * 1000).toISOString().split('T')[0];
-
-        // 3. 判断是否还在续期内：今天或昨天必须有签到，否则算断签
-        let checkDate = signedDays.has(todayStr) ? todayStr : (signedDays.has(yesterdayStr) ? yesterdayStr : null);
-        if (!checkDate) return 0;
-
-        // 4. 循环前溯，直到断签
-        let streak = 0;
-        let currentIterDate = new Date(checkDate);
-        
-        while (true) {
-            const dateKey = currentIterDate.toISOString().split('T')[0];
-            if (signedDays.has(dateKey)) {
-                streak++;
-                // 前移一天
-                currentIterDate.setDate(currentIterDate.getDate() - 1);
-            } else {
-                break;
-            }
-        }
-        return streak;
-    }
-
-    async function fetchWithRetry(address) {
-        const key = getApiKey();
-        const url = `https://api.etherscan.io/v2/api?chainid=2741&module=account&action=txlist&address=${address}&sort=desc&apikey=${key}`;
-        
+    // 页面加载完毕后立即执行
+    window.onload = async () => {
+        const statusText = document.getElementById('statusText');
         try {
-            const resp = await fetch(url);
-            const data = await resp.json();
-            if (data.status === "1") return calculateStreak(data.result);
-            if (data.message === "No transactions found") return 0;
-            return -1; // 触发频率限制
-        } catch (e) { return -1; }
-    }
+            // 直接读取 GitHub Action 生成好的 results.json，不需要再扫链了！
+            const res = await fetch('results.json?v=' + new Date().getTime()); // 加时间戳防止浏览器缓存
+            if (!res.ok) throw new Error("获取数据失败");
+            
+            const results = await res.json();
+            
+            // 更新统计数据
+            updateStats(results);
+            // 渲染排行榜
+            renderTable(results);
+            
+            statusText.innerText = `🟢 数据已同步 (更新于 ${new Date().toLocaleTimeString()})`;
+        } catch (e) {
+            console.error(e);
+            statusText.style.color = "red";
+            statusText.innerText = "数据加载失败，请检查 results.json 是否已生成。";
+        }
+    };
 
+    // 统计分布
     function updateStats(results) {
         const counts = { '60': 0, '50': 0, '40': 0 };
         results.forEach(r => {
-            if (r.streak > 60) counts['60']++;
+            if (r.streak >= 60) counts['60']++;
             else if (r.streak >= 50) counts['50']++;
             else if (r.streak >= 40) counts['40']++;
         });
@@ -214,15 +137,17 @@
         document.getElementById('count-total').innerText = results.length;
     }
 
+    // 渲染表格排名
     function renderTable(results) {
-        // 密集排名逻辑
-        const sorted = results.sort((a, b) => b.streak - a.streak);
+        // 剔除断签归零的用户，并按天数降序排列
+        const validResults = results.filter(r => r.streak > 0).sort((a, b) => b.streak - a.streak);
         const tbody = document.getElementById('leaderboardBody');
         tbody.innerHTML = '';
 
         let currentRank = 1;
-        sorted.forEach((item, index) => {
-            if (index > 0 && item.streak < sorted[index - 1].streak) {
+        validResults.forEach((item, index) => {
+            // 密集排名：遇到天数不同才改变名次
+            if (index > 0 && item.streak < validResults[index - 1].streak) {
                 currentRank = index + 1;
             }
             
@@ -236,61 +161,6 @@
             tbody.appendChild(tr);
         });
     }
-
-    async function run(addresses) {
-        const results = [];
-        const batchSize = 5; // 每次并发5个请求（对应3个Key的承载力）
-        const total = addresses.length;
-
-        for (let i = 0; i < total; i += batchSize) {
-            const batch = addresses.slice(i, i + batchSize);
-            const promises = batch.map(async addr => {
-                let streak = await fetchWithRetry(addr);
-                // 如果被频率限制，等待 2 秒重试
-                if (streak === -1) {
-                    await new Promise(r => setTimeout(r, 2000));
-                    streak = await fetchWithRetry(addr);
-                }
-                return { address: addr, streak: streak === -1 ? 0 : streak };
-            });
-
-            const batchRes = await Promise.all(promises);
-            results.push(...batchRes);
-
-            // 实时更新 UI
-            const progress = Math.round(((i + batchSize) / total) * 100);
-            document.getElementById('progressBar').style.width = Math.min(progress, 100) + '%';
-            document.getElementById('statusText').innerText = `正在高速分析链上数据: ${Math.min(i + batchSize, total)} / ${total}`;
-            
-            updateStats(results);
-            renderTable(results);
-
-            // 限制请求间隔防止封 IP
-            await new Promise(r => setTimeout(r, 400)); 
-        }
-        document.getElementById('statusText').innerHTML = "🟢 数据扫描分析已完成";
-    }
-
-    // 初始化
-    window.onload = async () => {
-        try {
-            const res = await fetch('user.json');
-            if (!res.ok) throw new Error();
-            const data = await res.json();
-            run(data);
-        } catch (e) {
-            document.getElementById('statusText').innerText = "未找到 user.json，请手动上传";
-            document.getElementById('manualBtn').style.display = 'inline-block';
-            document.getElementById('manualBtn').onclick = () => document.getElementById('fileInput').click();
-        }
-    };
-
-    document.getElementById('fileInput').onchange = (e) => {
-        const file = e.target.files[0];
-        const reader = new FileReader();
-        reader.onload = (event) => run(JSON.parse(event.target.result));
-        reader.readAsText(file);
-    };
 </script>
 
 </body>
