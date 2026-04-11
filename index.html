@@ -6,9 +6,9 @@
     <title>Abstract 签到数据看板 | @0xStudy</title>
     <style>
         :root {
-            --abs-primary: #00B359; /* 质感翡翠绿，适合白底 */
+            --abs-primary: #00B359; 
             --abs-primary-light: rgba(0, 179, 89, 0.1);
-            --bg-color: #F8FAF9; /* 非常淡的灰白色背景，比纯白护眼 */
+            --bg-color: #F8FAF9; 
             --card-bg: #FFFFFF;
             --text-main: #2C3E50;
             --text-muted: #7F8C8D;
@@ -52,18 +52,18 @@
         }
         h1 span { color: var(--abs-primary); }
 
-        /* 顶部统计卡片 */
+        /* 顶部统计卡片 - 强制一行显示 */
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-            gap: 15px;
+            grid-template-columns: repeat(8, 1fr); /* 强制分成 8 列，保持在一行 */
+            gap: 12px;
             margin-bottom: 25px;
         }
 
         .stat-card {
             background: var(--card-bg);
             border: 1px solid var(--border-color);
-            padding: 20px 15px;
+            padding: 15px 5px; /* 稍微减小左右内边距，确保能放得下8个 */
             border-radius: 12px;
             text-align: center;
             box-shadow: 0 2px 8px rgba(0,0,0,0.02);
@@ -74,12 +74,20 @@
             border-color: var(--abs-primary);
             box-shadow: 0 6px 16px rgba(0, 179, 89, 0.08);
         }
-        .stat-value { color: var(--abs-primary); font-size: 1.8em; font-weight: 800; font-family: 'Monaco', monospace; }
-        .stat-label { font-size: 0.85em; color: var(--text-muted); margin-top: 8px; font-weight: 500;}
+        .stat-value { color: var(--abs-primary); font-size: 1.6em; font-weight: 800; font-family: 'Monaco', monospace; }
+        .stat-label { font-size: 0.75em; color: var(--text-muted); margin-top: 8px; font-weight: 500;}
 
         /* 特殊强调的卡片 */
         .card-highlight { background: var(--abs-primary-light); border-color: var(--abs-primary); }
         .card-highlight .stat-value { color: var(--text-main); }
+
+        /* 移动端响应式适配：防止屏幕太小时挤成一团 */
+        @media (max-width: 900px) {
+            .stats-grid { grid-template-columns: repeat(4, 1fr); }
+        }
+        @media (max-width: 600px) {
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+        }
 
         /* 搜索栏 */
         .control-panel {
@@ -141,7 +149,7 @@
             width: 30px; 
             display: inline-block;
         }
-        .top-rank { color: var(--abs-primary); font-weight: 900;} /* 前三名颜色加深 */
+        .top-rank { color: var(--abs-primary); font-weight: 900;}
 
         .address-link { 
             color: var(--text-main); 
@@ -214,11 +222,11 @@
         
         <div class="stat-card card-highlight">
             <div class="stat-value" id="count-over7">0</div>
-            <div class="stat-label">达标总计 (>7天)</div>
+            <div class="stat-label">符合XP 5%加成</div>
         </div>
         <div class="stat-card">
             <div class="stat-value" id="count-total">0</div>
-            <div class="stat-label">总扫描地址 (黄金+)</div>
+            <div class="stat-label">总扫描 (黄金+)</div>
         </div>
     </div>
 
@@ -303,7 +311,7 @@
         // 过滤断签归零的用户
         let displayData = results.filter(r => r.streak > 0);
         
-        // 【核心逻辑】：按连续签到天数，从高到低排序 (b - a)
+        // 按连续签到天数，从高到低排序
         displayData.sort((a, b) => b.streak - a.streak);
         
         const tbody = document.getElementById('leaderboardBody');
@@ -313,17 +321,14 @@
         let htmlStr = "";
         
         displayData.forEach((item, index) => {
-            // 密集排名：如果天数比上一个人少，名次才往后排
             if (index > 0 && item.streak < displayData[index - 1].streak) {
                 currentRank = index + 1;
             }
             
-            // 搜索过滤：输入地址实时筛选，但保持其真实排名
             if (searchTerm && !item.address.toLowerCase().includes(searchTerm.toLowerCase())) {
                 return; 
             }
             
-            // 前三名加粗高亮样式
             const rankClass = currentRank <= 3 ? "rank-badge top-rank" : "rank-badge";
 
             htmlStr += `
@@ -342,7 +347,6 @@
         }
     }
 
-    // 搜索框实时防抖监听
     document.getElementById('searchInput').addEventListener('input', function(e) {
         renderTable(allData, e.target.value.trim());
     });
