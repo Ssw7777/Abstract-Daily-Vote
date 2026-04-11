@@ -3,85 +3,184 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Abstract 连续签到监控站</title>
+    <title>Abstract 连续签到监控站 | @0xStudy</title>
     <style>
         :root {
-            --abs-green: #00D15E;
-            --abs-bg: #050705;
-            --abs-panel: #0d120e;
-            --abs-border: rgba(0, 209, 94, 0.2);
-            --text-glow: 0 0 10px rgba(0, 209, 94, 0.5);
+            --abs-green: #00ff66; /* 调亮了绿色，更符合亮色极客风 */
+            --abs-bg-overlay: rgba(5, 10, 5, 0.85); /* 黑色半透明遮罩，保证字看得清 */
+            --abs-panel: rgba(13, 25, 14, 0.7); /* 面板半透明，透出背景图 */
+            --abs-border: rgba(0, 255, 102, 0.3);
+            --text-glow: 0 0 12px rgba(0, 255, 102, 0.6);
         }
 
         body {
-            background-color: var(--abs-bg);
+            /* 引入你上传的背景图 */
+            background: url('Abstract_BG_1920x1080_10.jpg') no-repeat center center fixed;
+            background-size: cover;
             color: #e0e0e0;
             font-family: 'JetBrains Mono', 'Monaco', 'Consolas', monospace;
             margin: 0;
             padding: 20px;
         }
 
-        .container { max-width: 1000px; margin: 0 auto; }
+        /* 加一层深色遮罩，不然背景太亮会看不清白色文字 */
+        .overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--abs-bg-overlay);
+            z-index: -1;
+        }
+
+        .container { max-width: 1100px; margin: 0 auto; position: relative; }
+
+        /* 头部：包含头像和标题 */
+        .header-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 30px;
+            margin-top: 20px;
+        }
+
+        .project-logo {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            border: 2px solid var(--abs-green);
+            box-shadow: var(--text-glow);
+        }
+
+        h1 { margin: 0; color: var(--abs-green); text-shadow: var(--text-glow); font-size: 2.5em; letter-spacing: 2px;}
 
         /* 顶部统计卡片 */
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
             gap: 15px;
-            margin-bottom: 30px;
+            margin-bottom: 20px;
         }
 
         .stat-card {
             background: var(--abs-panel);
+            backdrop-filter: blur(5px);
             border: 1px solid var(--abs-border);
             padding: 15px;
-            border-radius: 8px;
+            border-radius: 12px;
             text-align: center;
-            box-shadow: inset 0 0 15px rgba(0,0,0,0.5);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            transition: transform 0.2s;
         }
-
+        .stat-card:hover { transform: translateY(-3px); border-color: var(--abs-green); }
         .stat-value { color: var(--abs-green); font-size: 1.8em; font-weight: bold; text-shadow: var(--text-glow); }
-        .stat-label { font-size: 0.8em; color: #888; margin-top: 5px; }
+        .stat-label { font-size: 0.8em; color: #aaa; margin-top: 5px; }
 
-        /* 状态控制区 */
+        /* 控制台与搜索栏 */
         .control-panel {
             background: var(--abs-panel);
+            backdrop-filter: blur(5px);
             border: 1px solid var(--abs-border);
             padding: 20px;
-            border-radius: 8px;
+            border-radius: 12px;
             margin-bottom: 30px;
-            text-align: center;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
         }
 
-        /* 表格样式 */
-        .table-wrapper { border-radius: 8px; overflow: hidden; border: 1px solid var(--abs-border); }
-        table { width: 100%; border-collapse: collapse; background: var(--abs-panel); }
-        th { background: rgba(0, 209, 94, 0.1); color: var(--abs-green); padding: 15px; text-align: left; font-size: 0.9em; }
-        td { padding: 12px 15px; border-bottom: 1px solid #1a201b; font-size: 0.9em; }
-        tr:hover { background: rgba(0, 209, 94, 0.05); }
+        .search-box { flex-grow: 1; max-width: 500px; position: relative; }
+        .search-box input {
+            width: 100%;
+            padding: 12px 20px;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--abs-border);
+            border-radius: 8px;
+            color: var(--abs-green);
+            font-size: 1em;
+            outline: none;
+            font-family: inherit;
+            box-sizing: border-box;
+            transition: all 0.3s;
+        }
+        .search-box input:focus { border-color: var(--abs-green); box-shadow: var(--text-glow); }
+        .search-box input::placeholder { color: #555; }
 
-        .rank-badge { font-weight: bold; width: 30px; display: inline-block; }
-        .address-link { color: #aaa; text-decoration: none; border-bottom: 1px solid transparent; }
-        .address-link:hover { color: var(--abs-green); border-bottom: 1px solid var(--abs-green); }
-        .streak-count { color: var(--abs-green); font-weight: bold; }
+        /* 表格样式 */
+        .table-wrapper { border-radius: 12px; overflow: hidden; border: 1px solid var(--abs-border); background: var(--abs-panel); backdrop-filter: blur(5px); }
+        table { width: 100%; border-collapse: collapse; }
+        th { background: rgba(0, 255, 102, 0.15); color: var(--abs-green); padding: 18px 15px; text-align: left; font-size: 1em; letter-spacing: 1px;}
+        td { padding: 15px; border-bottom: 1px solid rgba(0, 255, 102, 0.1); font-size: 0.95em; }
+        tr:hover { background: rgba(0, 255, 102, 0.08); }
+
+        .rank-badge { font-weight: bold; width: 30px; display: inline-block; color: #fff;}
+        .address-link { color: #ccc; text-decoration: none; border-bottom: 1px dashed transparent; transition: all 0.2s;}
+        .address-link:hover { color: var(--abs-green); border-bottom: 1px dashed var(--abs-green); text-shadow: var(--text-glow);}
+        .streak-count { color: var(--abs-green); font-weight: bold; font-size: 1.1em;}
         
-        .gold-tier { color: #FFD700; background: rgba(255, 215, 0, 0.1); padding: 2px 6px; border-radius: 4px; font-size: 0.8em; }
+        /* 动态段位样式 */
+        .tier { padding: 4px 8px; border-radius: 6px; font-size: 0.85em; font-weight: bold; }
+        .tier-1 { color: #ff2a2a; background: rgba(255, 42, 42, 0.15); border: 1px solid #ff2a2a;} /* 60+ 传说 */
+        .tier-2 { color: #FFD700; background: rgba(255, 215, 0, 0.15); border: 1px solid #FFD700;} /* 50-60 黄金 */
+        .tier-3 { color: #e5e4e2; background: rgba(229, 228, 226, 0.15); border: 1px solid #e5e4e2;} /* 40-50 白金 */
+        .tier-4 { color: #c0c0c0; background: rgba(192, 192, 192, 0.15); border: 1px solid #c0c0c0;} /* 30-40 白银 */
+        .tier-5 { color: #cd7f32; background: rgba(205, 127, 50, 0.15); border: 1px solid #cd7f32;} /* 20-30 青铜 */
+        .tier-6 { color: var(--abs-green); background: rgba(0, 255, 102, 0.1); border: 1px solid var(--abs-border);} /* 7-20 活跃 */
+
+        /* 右下角推特直达浮窗 */
+        .twitter-float {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid var(--abs-green);
+            color: #fff;
+            padding: 12px 20px;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 0 15px rgba(0, 255, 102, 0.4);
+            transition: all 0.3s ease;
+            z-index: 1000;
+        }
+        .twitter-float:hover {
+            transform: scale(1.05) translateY(-5px);
+            background: var(--abs-green);
+            color: #000;
+            box-shadow: 0 0 25px rgba(0, 255, 102, 0.8);
+        }
+        .twitter-float svg { width: 20px; height: 20px; fill: currentColor; }
     </style>
 </head>
 <body>
 
+<div class="overlay"></div>
+
 <div class="container">
-    <h1 style="color: var(--abs-green); text-shadow: var(--text-glow);">ABSTRACT STREAK TRACKER</h1>
+    <div class="header-container">
+        <img src="Abstract项目方头像.png" alt="Abstract Logo" class="project-logo" onerror="this.style.display='none'">
+        <h1>ABSTRACT STREAK TRACKER</h1>
+    </div>
     
     <div class="stats-grid" id="statsGrid">
-        <div class="stat-card"><div class="stat-value" id="count-60">0</div><div class="stat-label">连续 > 60天</div></div>
+        <div class="stat-card"><div class="stat-value" id="count-60">0</div><div class="stat-label">连续 60天+</div></div>
         <div class="stat-card"><div class="stat-value" id="count-50">0</div><div class="stat-label">连续 50-60天</div></div>
         <div class="stat-card"><div class="stat-value" id="count-40">0</div><div class="stat-label">连续 40-50天</div></div>
+        <div class="stat-card"><div class="stat-value" id="count-30">0</div><div class="stat-label">连续 30-40天</div></div>
+        <div class="stat-card"><div class="stat-value" id="count-20">0</div><div class="stat-label">连续 20-30天</div></div>
+        <div class="stat-card"><div class="stat-value" id="count-7">0</div><div class="stat-label">连续 7-20天</div></div>
         <div class="stat-card"><div class="stat-value" id="count-total">0</div><div class="stat-label">总扫描地址</div></div>
     </div>
 
     <div class="control-panel">
-        <div id="statusText" style="color: var(--abs-green); font-weight: bold;">正在从云端拉取最新数据...</div>
+        <div class="search-box">
+            <input type="text" id="searchInput" placeholder="🔍 粘贴钱包地址 (0x...) 快速查排名...">
+        </div>
+        <div id="statusText" style="color: var(--abs-green); font-weight: bold; letter-spacing: 1px;">📡 正在同步链上数据...</div>
     </div>
 
     <div class="table-wrapper">
@@ -90,7 +189,7 @@
                 <tr>
                     <th style="width: 80px;">排名</th>
                     <th>用户地址 (Portal)</th>
-                    <th>段位</th>
+                    <th>活跃段位</th>
                     <th style="text-align: right;">当前连续签到</th>
                 </tr>
             </thead>
@@ -99,68 +198,110 @@
     </div>
 </div>
 
+<a href="https://x.com/0xStudy" target="_blank" class="twitter-float">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"></path></svg>
+    Follow @0xStudy
+</a>
+
 <script>
-    // 页面加载完毕后立即执行
+    let allData = []; // 保存全局数据用于搜索过滤
+
     window.onload = async () => {
         const statusText = document.getElementById('statusText');
         try {
-            // 直接读取 GitHub Action 生成好的 results.json，不需要再扫链了！
-            const res = await fetch('results.json?v=' + new Date().getTime()); // 加时间戳防止浏览器缓存
+            const res = await fetch('results.json?v=' + new Date().getTime());
             if (!res.ok) throw new Error("获取数据失败");
             
-            const results = await res.json();
+            allData = await res.json();
             
-            // 更新统计数据
-            updateStats(results);
-            // 渲染排行榜
-            renderTable(results);
+            updateStats(allData);
+            renderTable(allData);
             
-            statusText.innerText = `🟢 数据已同步 (更新于 ${new Date().toLocaleTimeString()})`;
+            statusText.innerHTML = `🟢 数据已同步 | 最后更新: ${new Date().toLocaleTimeString()}`;
         } catch (e) {
             console.error(e);
-            statusText.style.color = "red";
-            statusText.innerText = "数据加载失败，请检查 results.json 是否已生成。";
+            statusText.style.color = "#ff2a2a";
+            statusText.innerText = "⚠️ 数据加载失败，请检查 GitHub 自动化状态";
         }
     };
 
-    // 统计分布
+    // 更新细化后的统计区间
     function updateStats(results) {
-        const counts = { '60': 0, '50': 0, '40': 0 };
+        const counts = { '60': 0, '50': 0, '40': 0, '30': 0, '20': 0, '7': 0 };
         results.forEach(r => {
             if (r.streak >= 60) counts['60']++;
             else if (r.streak >= 50) counts['50']++;
             else if (r.streak >= 40) counts['40']++;
+            else if (r.streak >= 30) counts['30']++;
+            else if (r.streak >= 20) counts['20']++;
+            else if (r.streak >= 7) counts['7']++;
         });
+        
         document.getElementById('count-60').innerText = counts['60'];
         document.getElementById('count-50').innerText = counts['50'];
         document.getElementById('count-40').innerText = counts['40'];
+        document.getElementById('count-30').innerText = counts['30'];
+        document.getElementById('count-20').innerText = counts['20'];
+        document.getElementById('count-7').innerText = counts['7'];
         document.getElementById('count-total').innerText = results.length;
     }
 
-    // 渲染表格排名
-    function renderTable(results) {
-        // 剔除断签归零的用户，并按天数降序排列
-        const validResults = results.filter(r => r.streak > 0).sort((a, b) => b.streak - a.streak);
+    // 根据天数返回酷炫的段位标签
+    function getTierBadge(streak) {
+        if (streak >= 60) return `<span class="tier tier-1">💎 传说级</span>`;
+        if (streak >= 50) return `<span class="tier tier-2">🥇 黄金级</span>`;
+        if (streak >= 40) return `<span class="tier tier-3">🥈 白金级</span>`;
+        if (streak >= 30) return `<span class="tier tier-4">🥈 白银级</span>`;
+        if (streak >= 20) return `<span class="tier tier-5">🥉 青铜级</span>`;
+        if (streak >= 7)  return `<span class="tier tier-6">🟢 活跃新星</span>`;
+        return `<span class="tier" style="color:#666; border:1px solid #333;">⚪ 签到萌新</span>`;
+    }
+
+    // 渲染表格 (支持搜索过滤)
+    function renderTable(results, searchTerm = "") {
+        // 过滤断签归零的用户，并加入搜索逻辑
+        let displayData = results.filter(r => r.streak > 0);
+        
+        // 排序，计算全部排名后再进行搜索过滤，这样搜索出来的名次也是准确的总榜名次！
+        displayData.sort((a, b) => b.streak - a.streak);
+        
         const tbody = document.getElementById('leaderboardBody');
         tbody.innerHTML = '';
 
         let currentRank = 1;
-        validResults.forEach((item, index) => {
-            // 密集排名：遇到天数不同才改变名次
-            if (index > 0 && item.streak < validResults[index - 1].streak) {
+        let htmlStr = "";
+        
+        displayData.forEach((item, index) => {
+            if (index > 0 && item.streak < displayData[index - 1].streak) {
                 currentRank = index + 1;
             }
             
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td><span class="rank-badge">${currentRank}</span></td>
-                <td><a class="address-link" href="https://portal.abs.xyz/profile/${item.address}" target="_blank">${item.address}</a></td>
-                <td><span class="gold-tier">黄金+</span></td>
-                <td style="text-align: right;"><span class="streak-count">${item.streak}</span> Days</td>
+            // 如果有搜索词，且地址不包含搜索词，则跳过渲染，但保持名次计算正确
+            if (searchTerm && !item.address.toLowerCase().includes(searchTerm.toLowerCase())) {
+                return; 
+            }
+            
+            htmlStr += `
+                <tr>
+                    <td><span class="rank-badge">${currentRank}</span></td>
+                    <td><a class="address-link" href="https://portal.abs.xyz/profile/${item.address}" target="_blank">${item.address}</a></td>
+                    <td>${getTierBadge(item.streak)}</td>
+                    <td style="text-align: right;"><span class="streak-count">${item.streak}</span> Days</td>
+                </tr>
             `;
-            tbody.appendChild(tr);
         });
+        
+        if(htmlStr === "") {
+            tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding: 40px; color: #888;">没有找到匹配的活跃地址...</td></tr>`;
+        } else {
+            tbody.innerHTML = htmlStr;
+        }
     }
+
+    // 搜索框实时监听事件
+    document.getElementById('searchInput').addEventListener('input', function(e) {
+        renderTable(allData, e.target.value.trim());
+    });
 </script>
 
 </body>
