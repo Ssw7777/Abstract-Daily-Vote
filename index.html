@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Abstract 连续签到监控站</title>
+    <style>
+        :root {
+            --abs-green: #00D15E;
+            --abs-bg: #050705;
+            --abs-panel: #0d120e;
+            --abs-border: rgba(0, 209, 94, 0.2);
+            --text-glow: 0 0 10px rgba(0, 209, 94, 0.5);
+        }
+
+        body {
+            background-color: var(--abs-bg);
+            color: #e0e0e0;
+            font-family: 'JetBrains Mono', 'Monaco', 'Consolas', monospace;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container { max-width: 1000px; margin: 0 auto; }
+
+        /* 顶部统计卡片 */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: var(--abs-panel);
+            border: 1px solid var(--abs-border);
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: inset 0 0 15px rgba(0,0,0,0.5);
+        }
+
+        .stat-value { color: var(--abs-green); font-size: 1.8em; font-weight: bold; text-shadow: var(--text-glow); }
+        .stat-label { font-size: 0.8em; color: #888; margin-top: 5px; }
+
+        /* 状态控制区 */
+        .control-panel {
+            background: var(--abs-panel);
+            border: 1px solid var(--abs-border);
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }
+
+        .progress-container {
+            height: 4px;
+            background: #1a1a1a;
+            border-radius: 2px;
+            margin: 15px 0;
+            overflow: hidden;
+        }
+
+        #progressBar { height: 100%; background: var(--abs-green); width: 0%; transition: width 0.3s; box-shadow: var(--text-glow); }
+
+        /* 表格样式 */
+        .table-wrapper { border-radius: 8px; overflow: hidden; border: 1px solid var(--abs-border); }
+        table { width: 100%; border-collapse: collapse; background: var(--abs-panel); }
+        th { background: rgba(0, 209, 94, 0.1); color: var(--abs-green); padding: 15px; text-align: left; font-size: 0.9em; }
+        td { padding: 12px 15px; border-bottom: 1px solid #1a201b; font-size: 0.9em; }
+        tr:hover { background: rgba(0, 209, 94, 0.05); }
+
+        .rank-badge { font-weight: bold; width: 30px; display: inline-block; }
+        .address-link { color: #aaa; text-decoration: none; border-bottom: 1px solid transparent; }
+        .address-link:hover { color: var(--abs-green); border-bottom: 1px solid var(--abs-green); }
+        .streak-count { color: var(--abs-green); font-weight: bold; }
+        
+        .gold-tier { color: #FFD700; background: rgba(255, 215, 0, 0.1); padding: 2px 6px; border-radius: 4px; font-size: 0.8em; }
+
+        #fileInput { display: none; }
+        .btn {
+            background: var(--abs-green);
+            color: black;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            font-family: inherit;
+        }
+        .btn:hover { opacity: 0.9; box-shadow: var(--text-glow); }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1 style="color: var(--abs-green); text-shadow: var(--text-glow);">ABSTRACT STREAK TRACKER</h1>
+    
+    <div class="stats-grid" id="statsGrid">
+        <div class="stat-card"><div class="stat-value" id="count-60">0</div><div class="stat-label">连续 > 60天</div></div>
+        <div class="stat-card"><div class="stat-value" id="count-50">0</div><div class="stat-label">连续 50-60天</div></div>
+        <div class="stat-card"><div class="stat-value" id="count-40">0</div><div class="stat-label">连续 40-50天</div></div>
+        <div class="stat-card"><div class="stat-value" id="count-total">0</div><div class="stat-label">总扫描地址</div></div>
+    </div>
+
+    <div class="control-panel">
+        <div id="statusText">等待加载 user.json 数据源...</div>
+        <div class="progress-container"><div id="progressBar"></div></div>
+        <input type="file" id="fileInput" accept=".json">
+        <button class="btn" id="manualBtn" style="display:none;">手动上传 user.json</button>
+    </div>
+
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 80px;">排名</th>
+                    <th>用户地址 (Portal)</th>
+                    <th>段位</th>
+                    <th style="text-align: right;">当前连续签到</th>
+                </tr>
+            </thead>
+            <tbody id="leaderboardBody"></tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    // 配置信息
+    const CONTRACT = "0x3B50dE27506f0a8C1f4122A1e6F470009a76ce2A".toLowerCase();
+    const API_KEYS = [
+        "BNQ1DZYHBGF5V8J88C7XZU3MPHYWNA6GWH",
+        "8EFC3KPEUXF8YXFB7CKSGIICA2KRACD67W",
+        "C5X74HZZR164IDTN4HCZMN7Z76RCYYCHGD"
+    ];
+    let keyIndex = 0;
+
+    // 获取轮询 API Key 提高速度
+    function getApiKey() {
+        const key = API_KEYS[keyIndex];
+        keyIndex = (keyIndex + 1) % API_KEYS.length;
+        return key;
+    }
+
+    /**
+     * 计算连续签到天数 (核心逻辑升级)
+     * 规则：北京时间 23:00 刷新。断签即终止。必须持续到今日。
+     */
+    function calculateStreak(txs) {
+        if (!txs || txs.length === 0) return 0;
+
+        // 1. 提取所有成功交互的时间戳，并去重转化成“业务日期”
+        // 业务日期定义：(Timestamp - 23h) 的自然日
+        const signedDays = new Set();
+        txs.forEach(tx => {
+            if (tx.isError === "0" && tx.to.toLowerCase() === CONTRACT) {
+                const ts = parseInt(tx.timeStamp);
+                // 减去 23 小时（23 * 3600 秒），映射到业务日
+                const dateStr = new Date((ts - 23 * 3600) * 1000).toISOString().split('T')[0];
+                signedDays.add(dateStr);
+            }
+        });
+
+        if (signedDays.size === 0) return 0;
+
+        // 2. 计算当前业务日期
+        const nowTs = Math.floor(Date.now() / 1000);
+        const todayStr = new Date((nowTs - 23 * 3600) * 1000).toISOString().split('T')[0];
+        const yesterdayStr = new Date((nowTs - 23 * 3600 - 86400) * 1000).toISOString().split('T')[0];
+
+        // 3. 判断是否还在续期内：今天或昨天必须有签到，否则算断签
+        let checkDate = signedDays.has(todayStr) ? todayStr : (signedDays.has(yesterdayStr) ? yesterdayStr : null);
+        if (!checkDate) return 0;
+
+        // 4. 循环前溯，直到断签
+        let streak = 0;
+        let currentIterDate = new Date(checkDate);
+        
+        while (true) {
+            const dateKey = currentIterDate.toISOString().split('T')[0];
+            if (signedDays.has(dateKey)) {
+                streak++;
+                // 前移一天
+                currentIterDate.setDate(currentIterDate.getDate() - 1);
+            } else {
+                break;
+            }
+        }
+        return streak;
+    }
+
+    async function fetchWithRetry(address) {
+        const key = getApiKey();
+        const url = `https://api.etherscan.io/v2/api?chainid=2741&module=account&action=txlist&address=${address}&sort=desc&apikey=${key}`;
+        
+        try {
+            const resp = await fetch(url);
+            const data = await resp.json();
+            if (data.status === "1") return calculateStreak(data.result);
+            if (data.message === "No transactions found") return 0;
+            return -1; // 触发频率限制
+        } catch (e) { return -1; }
+    }
+
+    function updateStats(results) {
+        const counts = { '60': 0, '50': 0, '40': 0 };
+        results.forEach(r => {
+            if (r.streak > 60) counts['60']++;
+            else if (r.streak >= 50) counts['50']++;
+            else if (r.streak >= 40) counts['40']++;
+        });
+        document.getElementById('count-60').innerText = counts['60'];
+        document.getElementById('count-50').innerText = counts['50'];
+        document.getElementById('count-40').innerText = counts['40'];
+        document.getElementById('count-total').innerText = results.length;
+    }
+
+    function renderTable(results) {
+        // 密集排名逻辑
+        const sorted = results.sort((a, b) => b.streak - a.streak);
+        const tbody = document.getElementById('leaderboardBody');
+        tbody.innerHTML = '';
+
+        let currentRank = 1;
+        sorted.forEach((item, index) => {
+            if (index > 0 && item.streak < sorted[index - 1].streak) {
+                currentRank = index + 1;
+            }
+            
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><span class="rank-badge">${currentRank}</span></td>
+                <td><a class="address-link" href="https://portal.abs.xyz/profile/${item.address}" target="_blank">${item.address}</a></td>
+                <td><span class="gold-tier">黄金+</span></td>
+                <td style="text-align: right;"><span class="streak-count">${item.streak}</span> Days</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    async function run(addresses) {
+        const results = [];
+        const batchSize = 5; // 每次并发5个请求（对应3个Key的承载力）
+        const total = addresses.length;
+
+        for (let i = 0; i < total; i += batchSize) {
+            const batch = addresses.slice(i, i + batchSize);
+            const promises = batch.map(async addr => {
+                let streak = await fetchWithRetry(addr);
+                // 如果被频率限制，等待 2 秒重试
+                if (streak === -1) {
+                    await new Promise(r => setTimeout(r, 2000));
+                    streak = await fetchWithRetry(addr);
+                }
+                return { address: addr, streak: streak === -1 ? 0 : streak };
+            });
+
+            const batchRes = await Promise.all(promises);
+            results.push(...batchRes);
+
+            // 实时更新 UI
+            const progress = Math.round(((i + batchSize) / total) * 100);
+            document.getElementById('progressBar').style.width = Math.min(progress, 100) + '%';
+            document.getElementById('statusText').innerText = `正在高速分析链上数据: ${Math.min(i + batchSize, total)} / ${total}`;
+            
+            updateStats(results);
+            renderTable(results);
+
+            // 限制请求间隔防止封 IP
+            await new Promise(r => setTimeout(r, 400)); 
+        }
+        document.getElementById('statusText').innerHTML = "🟢 数据扫描分析已完成";
+    }
+
+    // 初始化
+    window.onload = async () => {
+        try {
+            const res = await fetch('user.json');
+            if (!res.ok) throw new Error();
+            const data = await res.json();
+            run(data);
+        } catch (e) {
+            document.getElementById('statusText').innerText = "未找到 user.json，请手动上传";
+            document.getElementById('manualBtn').style.display = 'inline-block';
+            document.getElementById('manualBtn').onclick = () => document.getElementById('fileInput').click();
+        }
+    };
+
+    document.getElementById('fileInput').onchange = (e) => {
+        const file = e.target.files[0];
+        const reader = new FileReader();
+        reader.onload = (event) => run(JSON.parse(event.target.result));
+        reader.readAsText(file);
+    };
+</script>
+
+</body>
+</html>
