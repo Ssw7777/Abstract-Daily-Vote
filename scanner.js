@@ -19,31 +19,55 @@ function getApiKey() {
     return key;
 }
 
+// ==========================================
+// 核心修复：绝对精准的连续签到算法 (23:00 刷新版)
+// ==========================================
 function calculateStreak(txs) {
     if (!txs || txs.length === 0) return 0;
     const signedDays = new Set();
+    
     txs.forEach(tx => {
         if (tx.isError === "0" && tx.to.toLowerCase() === CONTRACT) {
             const ts = parseInt(tx.timeStamp);
-            const dateStr = new Date((ts - 23 * 3600) * 1000).toISOString().split('T')[0];
+            
+            // 【时间锚点设定】
+            // 北京时间 晚上 23:00 = UTC 15:00。
+            // 加上 9 小时，让每天的 23:00 完美对齐系统的午夜 00:00 分割线。
+            const dateStr = new Date((ts + 9 * 3600) * 1000).toISOString().split('T')[0];
             signedDays.add(dateStr);
         }
     });
+    
     if (signedDays.size === 0) return 0;
+    
     const nowTs = Math.floor(Date.now() / 1000);
-    const todayStr = new Date((nowTs - 23 * 3600) * 1000).toISOString().split('T')[0];
-    const yesterdayStr = new Date((nowTs - 23 * 3600 - 86400) * 1000).toISOString().split('T')[0];
+    
+    // 当前时间也要同样加上 9 小时，保持标尺一致
+    const todayStr = new Date((nowTs + 9 * 3600) * 1000).toISOString().split('T')[0];
+    const yesterdayStr = new Date((nowTs + 9 * 3600 - 86400) * 1000).toISOString().split('T')[0];
+    
+    // 检查“今天”或“昨天”是否有签到记录，如果没有，说明已经彻底断签
     let checkDate = signedDays.has(todayStr) ? todayStr : (signedDays.has(yesterdayStr) ? yesterdayStr : null);
     if (!checkDate) return 0;
+    
     let streak = 0;
-    let currentIterDate = new Date(checkDate);
+    
+    // 强制使用 UTC 零时区解析，避免 GitHub 服务器本地时区干扰
+    let currentIterDate = new Date(checkDate + "T00:00:00Z"); 
+    
     while (true) {
         const dateKey = currentIterDate.toISOString().split('T')[0];
-        if (signedDays.has(dateKey)) { streak++; currentIterDate.setDate(currentIterDate.getDate() - 1); }
-        else { break; }
+        if (signedDays.has(dateKey)) {
+            streak++;
+            // 强制使用 UTC 的方式天数减 1，绝对安全无误差
+            currentIterDate.setUTCDate(currentIterDate.getUTCDate() - 1); 
+        } else { 
+            break; 
+        }
     }
     return streak;
 }
+// ==========================================
 
 async function start() {
     const addresses = JSON.parse(fs.readFileSync('./user.json', 'utf8'));
@@ -51,11 +75,10 @@ async function start() {
     console.log(`🚀 开启【无阻塞流水线】模式：总计扫描 ${addresses.length} 个地址...`);
 
     let completed = 0;
-    const poolLimit = 12; // 传送带上最多同时保持 12 个请求
+    const poolLimit = 12; // 传送带最大并发
     const executing = new Set();
 
     for (const addr of addresses) {
-        // 创建一个独立任务
         const task = (async () => {
             let streak = -1;
             let retries = 4;
@@ -68,7 +91,7 @@ async function start() {
                     else throw new Error("Limit");
                 } catch (e) {
                     retries--;
-                    if (retries > 0) await new Promise(r => setTimeout(r, 1500)); // 遇到限制，自己去罚站1.5秒，不影响别人
+                    if (retries > 0) await new Promise(r => setTimeout(r, 1500)); 
                     else streak = 0;
                 }
             }
@@ -80,19 +103,16 @@ async function start() {
         executing.add(task);
         task.finally(() => executing.delete(task));
 
-        // 如果传送带满了，等最快的一个完成再放新的上去
         if (executing.size >= poolLimit) {
             await Promise.race(executing);
         }
         
-        // 发球间隔，避免瞬间挤爆
         await new Promise(r => setTimeout(r, 60)); 
     }
 
-    // 等待最后剩下的任务全部跑完
     await Promise.all(executing);
     fs.writeFileSync('./results.json', JSON.stringify(results, null, 2));
-    console.log("🎉 无阻塞扫描全部完成！已生成 results.json");
+    console.log("🎉 数据扫描全部完成！时区逻辑绝对正确！已生成 results.json");
 }
 
 start();
