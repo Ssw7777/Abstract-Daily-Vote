@@ -3,14 +3,12 @@ const axios = require('axios');
 const http = require('http');
 const https = require('https');
 
-// 【极速核心】开启 Keep-Alive，复用 TCP 链接，大幅度降低握手延迟
 const axiosInstance = axios.create({
     httpAgent: new http.Agent({ keepAlive: true }),
     httpsAgent: new https.Agent({ keepAlive: true }),
-    timeout: 20000 // 20秒超时
+    timeout: 20000
 });
 
-// 你的 3 个 API Key
 const API_KEYS = ["BNQ1DZYHBGF5V8J88C7XZU3MPHYWNA6GWH", "8EFC3KPEUXF8YXFB7CKSGIICA2KRACD67W", "C5X74HZZR164IDTN4HCZMN7Z76RCYYCHGD"];
 const CONTRACT = "0x3B50dE27506f0a8C1f4122A1e6F470009a76ce2A".toLowerCase();
 let keyIndex = 0;
@@ -21,7 +19,6 @@ function getApiKey() {
     return key;
 }
 
-// 连续签到计算逻辑 (维持原样)
 function calculateStreak(txs) {
     if (!txs || txs.length === 0) return 0;
     const signedDays = new Set();
@@ -42,70 +39,60 @@ function calculateStreak(txs) {
     let currentIterDate = new Date(checkDate);
     while (true) {
         const dateKey = currentIterDate.toISOString().split('T')[0];
-        if (signedDays.has(dateKey)) {
-            streak++;
-            currentIterDate.setDate(currentIterDate.getDate() - 1);
-        } else { break; }
+        if (signedDays.has(dateKey)) { streak++; currentIterDate.setDate(currentIterDate.getDate() - 1); }
+        else { break; }
     }
     return streak;
 }
 
 async function start() {
-    try {
-        const addresses = JSON.parse(fs.readFileSync('./user.json', 'utf8'));
-        const results = [];
-        console.log(`🚀 开启极速模式：总计扫描 ${addresses.length} 个地址...`);
+    const addresses = JSON.parse(fs.readFileSync('./user.json', 'utf8'));
+    const results = [];
+    console.log(`🚀 开启【无阻塞流水线】模式：总计扫描 ${addresses.length} 个地址...`);
 
-        // 【极速配置】3个Key共享，并发12个，确保不超过 15次/秒 的红线
-        const batchSize = 12; 
-        
-        for (let i = 0; i < addresses.length; i += batchSize) {
-            const batch = addresses.slice(i, i + batchSize);
-            
-            const promises = batch.map(async addr => {
-                let streak = -1;
-                let retries = 3;
-                while (streak === -1 && retries > 0) {
-                    try {
-                        const url = `https://api.etherscan.io/v2/api?chainid=2741&module=account&action=txlist&address=${addr}&sort=desc&apikey=${getApiKey()}`;
-                        // 使用带有 Keep-Alive 的实例
-                        const resp = await axiosInstance.get(url);
-                        
-                        if (resp.data.status === "1") {
-                            streak = calculateStreak(resp.data.result);
-                        } else if (resp.data.message === "No transactions found") {
-                            streak = 0;
-                        } else {
-                            throw new Error("API Limit");
-                        }
-                    } catch (e) {
-                        retries--;
-                        if (retries > 0) await new Promise(r => setTimeout(r, 2000)); // 只有被限制时才罚站 2 秒
-                        else streak = 0; 
-                    }
+    let completed = 0;
+    const poolLimit = 12; // 传送带上最多同时保持 12 个请求
+    const executing = new Set();
+
+    for (const addr of addresses) {
+        // 创建一个独立任务
+        const task = (async () => {
+            let streak = -1;
+            let retries = 4;
+            while (streak === -1 && retries > 0) {
+                try {
+                    const url = `https://api.etherscan.io/v2/api?chainid=2741&module=account&action=txlist&address=${addr}&sort=desc&apikey=${getApiKey()}`;
+                    const resp = await axiosInstance.get(url);
+                    if (resp.data.status === "1") streak = calculateStreak(resp.data.result);
+                    else if (resp.data.message === "No transactions found") streak = 0;
+                    else throw new Error("Limit");
+                } catch (e) {
+                    retries--;
+                    if (retries > 0) await new Promise(r => setTimeout(r, 1500)); // 遇到限制，自己去罚站1.5秒，不影响别人
+                    else streak = 0;
                 }
-                return { address: addr, streak };
-            });
-
-            const batchResults = await Promise.all(promises);
-            results.push(...batchResults);
-            
-            // 为了防止日志太多卡死控制台，每处理 120 个地址打印一次进度
-            if (i % 120 === 0 || i + batchSize >= addresses.length) {
-                console.log(`⚡ 极速狂飙中... 进度: ${Math.min(i + batchSize, addresses.length)} / ${addresses.length}`);
             }
-
-            // 【精准限速】每次并发12个请求后，强制只等 1 秒（因为3个Key加起来1秒能承受15个请求）
-            await new Promise(r => setTimeout(r, 1000)); 
-        }
-
-        fs.writeFileSync('./results.json', JSON.stringify(results, null, 2));
-        console.log("🎉 所有数据极速扫描完成！已生成 results.json");
+            results.push({ address: addr, streak });
+            completed++;
+            if (completed % 100 === 0) console.log(`⚡ 进度: ${completed} / ${addresses.length} (${(completed/addresses.length*100).toFixed(1)}%)`);
+        })();
         
-    } catch (error) {
-        console.error("严重错误:", error);
-        process.exit(1);
+        executing.add(task);
+        task.finally(() => executing.delete(task));
+
+        // 如果传送带满了，等最快的一个完成再放新的上去
+        if (executing.size >= poolLimit) {
+            await Promise.race(executing);
+        }
+        
+        // 发球间隔，避免瞬间挤爆
+        await new Promise(r => setTimeout(r, 60)); 
     }
+
+    // 等待最后剩下的任务全部跑完
+    await Promise.all(executing);
+    fs.writeFileSync('./results.json', JSON.stringify(results, null, 2));
+    console.log("🎉 无阻塞扫描全部完成！已生成 results.json");
 }
 
 start();
