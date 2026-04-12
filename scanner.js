@@ -63,14 +63,12 @@ async function start() {
     console.log(`🚀 开启【高保真稳妥】模式：总计扫描 ${addresses.length} 个地址...`);
 
     let completed = 0;
-    // 【修改点1】降低并发上限，从 12 降到 5，配合 3 个 API Key 刚刚好，不拥堵
     const poolLimit = 5; 
     const executing = new Set();
 
     for (const addr of addresses) {
         const task = (async () => {
             let streak = -1;
-            // 【修改点2】重试次数从 4 次提升到 10 次，死磕到底
             let retries = 10; 
             while (streak === -1 && retries > 0) {
                 try {
@@ -82,11 +80,9 @@ async function start() {
                 } catch (e) {
                     retries--;
                     if (retries > 0) {
-                        // 【修改点3】动态退避罚站机制：第一次失败等2秒，第二次等4秒...绝不疯狂撞墙
                         const waitTime = (11 - retries) * 2000; 
                         await new Promise(r => setTimeout(r, waitTime)); 
                     } else {
-                        // 10次都失败才会记为0，概率极低
                         streak = 0; 
                         console.log(`⚠️ 极度拥堵，放弃地址: ${addr}`);
                     }
@@ -104,13 +100,42 @@ async function start() {
             await Promise.race(executing);
         }
         
-        // 【修改点4】每次发球间隔从 60ms 延长到 150ms，从源头控制车流
         await new Promise(r => setTimeout(r, 150)); 
     }
 
     await Promise.all(executing);
+    
+    // 1. 保存所有用户的排名数据
     fs.writeFileSync('./results.json', JSON.stringify(results, null, 2));
-    console.log("🎉 高保真扫描全部完成！已生成 results.json，零错杀！");
+
+    // ==========================================
+    // 2. 统计并保存每天的趋势数据到 history.json
+    // ==========================================
+    const over7Count = results.filter(r => r.streak >= 7).length;
+    // 获取北京时间的今天日期 (YYYY-MM-DD)
+    const dateStr = new Date(Date.now() + 8 * 3600 * 1000).toISOString().split('T')[0];
+
+    let history = [];
+    if (fs.existsSync('./history.json')) {
+        try {
+            history = JSON.parse(fs.readFileSync('./history.json', 'utf8'));
+        } catch(e) { console.log("history 读取失败，重新创建"); }
+    }
+
+    // 检查今天是否已经记录过，有则更新，无则新增
+    const todayIndex = history.findIndex(h => h.date === dateStr);
+    if (todayIndex > -1) {
+        history[todayIndex] = { date: dateStr, count: over7Count };
+    } else {
+        history.push({ date: dateStr, count: over7Count });
+    }
+
+    // 只保留最近 30 天的数据
+    if (history.length > 30) history = history.slice(-30);
+
+    fs.writeFileSync('./history.json', JSON.stringify(history, null, 2));
+    
+    console.log("🎉 高保真扫描全部完成！已生成 results.json 和 history.json！");
 }
 
 start();
