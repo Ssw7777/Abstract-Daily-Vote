@@ -22,6 +22,7 @@ jobs:
         run: |
           git config --global user.name "GitHub Action Bot"
           git config --global user.email "bot@github.com"
-          git add results.json
-          git commit -m "自动更新签到数据" || exit 0
+          git add .
+          git commit -m "自动更新签到数据与趋势记录" || exit 0
+          git pull --rebase origin main
           git push
