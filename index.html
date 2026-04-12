@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Abstract 签到数据看板 | @0xStudy</title>
+    <link rel="icon" href="Abstract项目方头像.png" type="image/png">
+    
     <style>
         /* 全局防溢出 */
         * { box-sizing: border-box; }
@@ -11,7 +13,6 @@
         :root {
             --abs-primary: #00B359; 
             --abs-primary-light: rgba(0, 179, 89, 0.1);
-            /* 将纯白背景改为了 90% 透明度的白色，开启毛玻璃前提 */
             --card-bg: rgba(255, 255, 255, 0.85); 
             --text-main: #2C3E50;
             --text-muted: #636E72;
@@ -19,7 +20,6 @@
         }
 
         body {
-            /* 引入你的专属背景图 */
             background: url('Abstract_BG.jpg') no-repeat center center fixed;
             background-size: cover;
             color: var(--text-main);
@@ -48,7 +48,7 @@
             border: 2px solid var(--abs-primary);
             box-shadow: 0 4px 12px rgba(0, 179, 89, 0.2);
             object-fit: cover;
-            background: #fff; /* 防止透明logo透底 */
+            background: #fff; 
         }
 
         h1 { 
@@ -57,7 +57,6 @@
             font-size: 2.4em; 
             font-weight: 900; 
             letter-spacing: 1px;
-            /* 给标题加一层白色发光，防止背景图太暗导致看不清文字 */
             text-shadow: 0 0 15px rgba(255, 255, 255, 0.8), 0 0 5px rgba(255, 255, 255, 0.8);
         }
         h1 span { color: var(--abs-primary); }
@@ -72,7 +71,6 @@
 
         .stat-card {
             background: var(--card-bg);
-            /* 核心黑科技：毛玻璃模糊滤镜 */
             backdrop-filter: blur(10px);
             -webkit-backdrop-filter: blur(10px);
             border: 1px solid var(--border-color);
@@ -90,7 +88,6 @@
         .stat-value { color: var(--abs-primary); font-size: 1.7em; font-weight: 900; font-family: 'Monaco', 'Consolas', monospace; }
         .stat-label { font-size: 0.78em; color: var(--text-muted); margin-top: 8px; font-weight: 600;}
 
-        /* 特殊强调的卡片 */
         .card-highlight { background: rgba(0, 179, 89, 0.15); border-color: var(--abs-primary); }
         .card-highlight .stat-value { color: var(--text-main); }
 
@@ -176,18 +173,35 @@
             font-family: 'Monaco', 'Consolas', monospace;
         }
 
-        /* 底部信息 */
+        /* 底部公告栏 */
         .footer-note {
-            text-align: left;
-            margin-top: 25px;
-            color: var(--text-main);
-            font-size: 0.9em;
-            font-weight: 700;
+            margin-top: 30px;
+            background: rgba(255, 255, 255, 0.6);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+        }
+        .footer-note-title {
             display: flex;
             align-items: center;
             gap: 8px;
-            text-shadow: 0 0 10px rgba(255,255,255,0.8);
+            color: var(--abs-primary);
+            font-size: 1.05em;
+            font-weight: 800;
+            margin-bottom: 10px;
         }
+        .footer-note ul {
+            margin: 0;
+            padding-left: 25px;
+            color: var(--text-muted);
+            font-size: 0.9em;
+            font-weight: 600;
+            line-height: 1.8;
+        }
+        .footer-note ul li b { color: var(--text-main); }
 
         /* 推特浮窗 */
         .twitter-float {
@@ -274,8 +288,16 @@
     </div>
 
     <div class="footer-note">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-        本看板数据每天自动刷新一次，数据结果仅供参考。
+        <div class="footer-note-title">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            看板数据说明 (仅供参考)
+        </div>
+        <ul>
+            <li><b>更新频率：</b>系统每日全自动抓取链上数据并刷新一次看板。</li>
+            <li><b>周期计算：</b>每日签到状态于 <b>北京时间 23:00</b> 准点刷新。</li>
+            <li><b>数据追溯：</b>统计天数已包含官方签到活动开始前的历史合约交互记录。</li>
+            <li><b>误差声明：</b>当前统计基于手动整理的地址库，极少部分数据可能存在遗漏或偏差，结果仅供参考。</li>
+        </ul>
     </div>
 </div>
 
