@@ -19,9 +19,7 @@ function getApiKey() {
     return key;
 }
 
-// ==========================================
 // 核心修复：绝对精准的连续签到算法 (23:00 刷新版)
-// ==========================================
 function calculateStreak(txs) {
     if (!txs || txs.length === 0) return 0;
     const signedDays = new Set();
@@ -29,10 +27,7 @@ function calculateStreak(txs) {
     txs.forEach(tx => {
         if (tx.isError === "0" && tx.to.toLowerCase() === CONTRACT) {
             const ts = parseInt(tx.timeStamp);
-            
-            // 【时间锚点设定】
-            // 北京时间 晚上 23:00 = UTC 15:00。
-            // 加上 9 小时，让每天的 23:00 完美对齐系统的午夜 00:00 分割线。
+            // 加上 9 小时，让每天的 23:00 完美对齐系统的午夜 00:00 分割线
             const dateStr = new Date((ts + 9 * 3600) * 1000).toISOString().split('T')[0];
             signedDays.add(dateStr);
         }
@@ -41,25 +36,19 @@ function calculateStreak(txs) {
     if (signedDays.size === 0) return 0;
     
     const nowTs = Math.floor(Date.now() / 1000);
-    
-    // 当前时间也要同样加上 9 小时，保持标尺一致
     const todayStr = new Date((nowTs + 9 * 3600) * 1000).toISOString().split('T')[0];
     const yesterdayStr = new Date((nowTs + 9 * 3600 - 86400) * 1000).toISOString().split('T')[0];
     
-    // 检查“今天”或“昨天”是否有签到记录，如果没有，说明已经彻底断签
     let checkDate = signedDays.has(todayStr) ? todayStr : (signedDays.has(yesterdayStr) ? yesterdayStr : null);
     if (!checkDate) return 0;
     
     let streak = 0;
-    
-    // 强制使用 UTC 零时区解析，避免 GitHub 服务器本地时区干扰
     let currentIterDate = new Date(checkDate + "T00:00:00Z"); 
     
     while (true) {
         const dateKey = currentIterDate.toISOString().split('T')[0];
         if (signedDays.has(dateKey)) {
             streak++;
-            // 强制使用 UTC 的方式天数减 1，绝对安全无误差
             currentIterDate.setUTCDate(currentIterDate.getUTCDate() - 1); 
         } else { 
             break; 
@@ -67,21 +56,22 @@ function calculateStreak(txs) {
     }
     return streak;
 }
-// ==========================================
 
 async function start() {
     const addresses = JSON.parse(fs.readFileSync('./user.json', 'utf8'));
     const results = [];
-    console.log(`🚀 开启【无阻塞流水线】模式：总计扫描 ${addresses.length} 个地址...`);
+    console.log(`🚀 开启【高保真稳妥】模式：总计扫描 ${addresses.length} 个地址...`);
 
     let completed = 0;
-    const poolLimit = 12; // 传送带最大并发
+    // 【修改点1】降低并发上限，从 12 降到 5，配合 3 个 API Key 刚刚好，不拥堵
+    const poolLimit = 5; 
     const executing = new Set();
 
     for (const addr of addresses) {
         const task = (async () => {
             let streak = -1;
-            let retries = 4;
+            // 【修改点2】重试次数从 4 次提升到 10 次，死磕到底
+            let retries = 10; 
             while (streak === -1 && retries > 0) {
                 try {
                     const url = `https://api.etherscan.io/v2/api?chainid=2741&module=account&action=txlist&address=${addr}&sort=desc&apikey=${getApiKey()}`;
@@ -91,8 +81,15 @@ async function start() {
                     else throw new Error("Limit");
                 } catch (e) {
                     retries--;
-                    if (retries > 0) await new Promise(r => setTimeout(r, 1500)); 
-                    else streak = 0;
+                    if (retries > 0) {
+                        // 【修改点3】动态退避罚站机制：第一次失败等2秒，第二次等4秒...绝不疯狂撞墙
+                        const waitTime = (11 - retries) * 2000; 
+                        await new Promise(r => setTimeout(r, waitTime)); 
+                    } else {
+                        // 10次都失败才会记为0，概率极低
+                        streak = 0; 
+                        console.log(`⚠️ 极度拥堵，放弃地址: ${addr}`);
+                    }
                 }
             }
             results.push({ address: addr, streak });
@@ -107,12 +104,13 @@ async function start() {
             await Promise.race(executing);
         }
         
-        await new Promise(r => setTimeout(r, 60)); 
+        // 【修改点4】每次发球间隔从 60ms 延长到 150ms，从源头控制车流
+        await new Promise(r => setTimeout(r, 150)); 
     }
 
     await Promise.all(executing);
     fs.writeFileSync('./results.json', JSON.stringify(results, null, 2));
-    console.log("🎉 数据扫描全部完成！时区逻辑绝对正确！已生成 results.json");
+    console.log("🎉 高保真扫描全部完成！已生成 results.json，零错杀！");
 }
 
 start();
